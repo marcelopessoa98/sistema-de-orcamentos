@@ -1,15 +1,17 @@
 const fs = require("fs");
 const path = require("path");
-const sqlite3 = require("sqlite3");
-const { open } = require("sqlite");
 
+const isVercel = Boolean(process.env.VERCEL);
 const dataDir = path.resolve(__dirname, "../../data");
 const defaultDbPath = process.env.VERCEL
   ? path.join("/tmp", "seinfra.sqlite")
   : path.join(dataDir, "seinfra.sqlite");
 const dbPath = process.env.SEINFRA_DB_PATH || defaultDbPath;
+const jsonSeedPath = path.join(dataDir, "seinfra-seed.json");
+const jsonDbPath = process.env.SEINFRA_JSON_PATH || path.join("/tmp", "seinfra-services.json");
 
 let dbPromise;
+let jsonStore;
 
 function serviceKey(service) {
   return `${service.conta}|${service.codigo}`;
@@ -49,8 +51,47 @@ function hasServiceChanges(currentServices, nextServices) {
   });
 }
 
+function emptyJsonStore() {
+  return {
+    meta: {},
+    services: []
+  };
+}
+
+function loadJsonStore() {
+  if (jsonStore) {
+    return jsonStore;
+  }
+
+  fs.mkdirSync(path.dirname(jsonDbPath), { recursive: true });
+
+  if (!fs.existsSync(jsonDbPath)) {
+    const seed = fs.existsSync(jsonSeedPath)
+      ? JSON.parse(fs.readFileSync(jsonSeedPath, "utf8"))
+      : emptyJsonStore();
+    fs.writeFileSync(jsonDbPath, JSON.stringify(seed, null, 2));
+  }
+
+  jsonStore = JSON.parse(fs.readFileSync(jsonDbPath, "utf8"));
+  jsonStore.meta = jsonStore.meta || {};
+  jsonStore.services = Array.isArray(jsonStore.services) ? jsonStore.services : [];
+  return jsonStore;
+}
+
+function saveJsonStore() {
+  if (!jsonStore) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(jsonDbPath), { recursive: true });
+  fs.writeFileSync(jsonDbPath, JSON.stringify(jsonStore, null, 2));
+}
+
 async function getDb() {
   if (!dbPromise) {
+    const sqlite3 = require("sqlite3");
+    const { open } = require("sqlite");
+
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     dbPromise = open({
       filename: dbPath,
@@ -62,6 +103,11 @@ async function getDb() {
 }
 
 async function initDatabase() {
+  if (isVercel) {
+    loadJsonStore();
+    return;
+  }
+
   const db = await getDb();
   await db.exec(`
     PRAGMA journal_mode = WAL;
@@ -92,7 +138,6 @@ async function initDatabase() {
 }
 
 async function replaceServices(services) {
-  const db = await getDb();
   const checkedAt = new Date().toISOString();
   const currentServices = await getServices();
   const changed = hasServiceChanges(currentServices, services);
@@ -108,6 +153,22 @@ async function replaceServices(services) {
   }
 
   const updatedAt = checkedAt;
+
+  if (isVercel) {
+    const store = loadJsonStore();
+    store.services = services.map((service, index) => ({
+      id: index + 1,
+      ...serviceSnapshot(service),
+      data_atualizacao: updatedAt
+    }));
+    store.meta.last_sync = updatedAt;
+    store.meta.last_check = checkedAt;
+    saveJsonStore();
+
+    return { changed: true, checkedAt, updatedAt, total: services.length };
+  }
+
+  const db = await getDb();
 
   await db.exec("BEGIN TRANSACTION");
 
@@ -164,6 +225,10 @@ async function replaceServices(services) {
 }
 
 async function getServices() {
+  if (isVercel) {
+    return loadJsonStore().services.map((service) => ({ ...service }));
+  }
+
   const db = await getDb();
   return db.all(`
     SELECT *
@@ -173,6 +238,22 @@ async function getServices() {
 }
 
 async function searchServices({ q = "", unit = "", limit = 200 } = {}) {
+  if (isVercel) {
+    const tokens = String(q || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    return loadJsonStore().services
+      .filter((service) => {
+        const text = String(service.texto_busca || "");
+        const unitMatches = !unit || service.unidade === unit;
+        return unitMatches && tokens.every((token) => text.includes(token));
+      })
+      .slice(0, Number(limit) || 200)
+      .map((service) => ({ ...service }));
+  }
+
   const db = await getDb();
   const params = [];
   const clauses = ["1 = 1"];
@@ -206,6 +287,23 @@ async function searchServices({ q = "", unit = "", limit = 200 } = {}) {
 }
 
 async function getStats() {
+  if (isVercel) {
+    const store = loadJsonStore();
+    const lastUpdate = store.services.reduce(
+      (latest, service) =>
+        !latest || String(service.data_atualizacao || "") > latest
+          ? String(service.data_atualizacao || "")
+          : latest,
+      ""
+    );
+
+    return {
+      total: store.services.length,
+      lastUpdate: lastUpdate || store.meta.last_sync || null,
+      lastCheck: store.meta.last_check || null
+    };
+  }
+
   const db = await getDb();
   const row = await db.get("SELECT COUNT(*) AS total, MAX(data_atualizacao) AS lastUpdate FROM services");
   const lastSync = await getMeta("last_sync");
@@ -219,6 +317,13 @@ async function getStats() {
 }
 
 async function setMeta(key, value) {
+  if (isVercel) {
+    const store = loadJsonStore();
+    store.meta[key] = value;
+    saveJsonStore();
+    return;
+  }
+
   const db = await getDb();
   await db.run(
     `
@@ -232,6 +337,10 @@ async function setMeta(key, value) {
 }
 
 async function getMeta(key) {
+  if (isVercel) {
+    return loadJsonStore().meta[key] || null;
+  }
+
   const db = await getDb();
   const row = await db.get("SELECT value FROM meta WHERE key = ?", key);
   return row?.value || null;

@@ -101,6 +101,26 @@ async function readApiJson(response, fallbackMessage) {
   return data;
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 25000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("A verificação da SEINFRA demorou demais. A base local será usada agora.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function setLoading(isLoading) {
   state.isSyncing = isLoading;
   elements.loadingOverlay.hidden = !isLoading;
@@ -321,7 +341,7 @@ async function checkBaseUpdates() {
   setLoading(true);
   setStatus("Verificando atualizações da base SEINFRA...");
 
-  const response = await fetch("/api/sync-seinfra", { method: "POST" });
+  const response = await fetchWithTimeout("/api/sync-seinfra", { method: "POST" });
   const data = await readApiJson(response, "Não foi possível verificar a base SEINFRA.");
 
   if (data.updatedAt) {

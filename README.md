@@ -43,8 +43,8 @@ npm start
 
 ## Deploy na Vercel
 
-O projeto exporta o app Express no arquivo `index.js` da raiz, formato reconhecido pela Vercel.
 Os arquivos do frontend ficam em `public/`, que e o diretorio publico esperado pela plataforma.
+As rotas de backend ficam em `api/`, usando funcoes serverless nativas da Vercel.
 
 Depois de enviar as alteracoes para o Git, faca um novo deploy na Vercel. A URL raiz deve abrir a
 interface, e as rotas da API continuam em `/api/...`.

@@ -41,6 +41,17 @@ Para rodar sem watch:
 npm start
 ```
 
+## Deploy na Vercel
+
+O projeto exporta o app Express no arquivo `index.js` da raiz, formato reconhecido pela Vercel.
+Os arquivos do frontend ficam em `public/`, que e o diretorio publico esperado pela plataforma.
+
+Depois de enviar as alteracoes para o Git, faca um novo deploy na Vercel. A URL raiz deve abrir a
+interface, e as rotas da API continuam em `/api/...`.
+
+Observacao: na Vercel, o SQLite local usa armazenamento temporario. Para uso em producao com dados
+persistentes, troque o SQLite por um banco externo, como Postgres/Neon/Supabase.
+
 ## Atualizar a base SEINFRA
 
 Pela interface, clique em **Atualizar Base SEINFRA**.

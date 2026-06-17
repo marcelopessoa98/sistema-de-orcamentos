@@ -5,3 +5,4 @@ data/*.sqlite-*
 npm-debug.log*
 dev-server.stdout.log
 dev-server.stderr.log
+dev-server-*.log

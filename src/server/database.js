@@ -4,7 +4,10 @@ const sqlite3 = require("sqlite3");
 const { open } = require("sqlite");
 
 const dataDir = path.resolve(__dirname, "../../data");
-const dbPath = process.env.SEINFRA_DB_PATH || path.join(dataDir, "seinfra.sqlite");
+const defaultDbPath = process.env.VERCEL
+  ? path.join("/tmp", "seinfra.sqlite")
+  : path.join(dataDir, "seinfra.sqlite");
+const dbPath = process.env.SEINFRA_DB_PATH || defaultDbPath;
 
 let dbPromise;
 

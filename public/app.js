@@ -1,3 +1,5 @@
+import Fuse from "/vendor/fuse.min.mjs";
+
 const state = {
   services: [],
   results: [],

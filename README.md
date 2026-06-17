@@ -54,7 +54,8 @@ persistentes, troque o SQLite por um banco externo, como Postgres/Neon/Supabase.
 
 ## Atualizar a base SEINFRA
 
-Pela interface, clique em **Atualizar Base SEINFRA**.
+A interface verifica automaticamente a base SEINFRA assim que o sistema abre.
+Se houver mudanca na origem, o banco local e atualizado antes de liberar a busca.
 
 Pelo terminal:
 

@@ -11,6 +11,44 @@ const dbPath = process.env.SEINFRA_DB_PATH || defaultDbPath;
 
 let dbPromise;
 
+function serviceKey(service) {
+  return `${service.conta}|${service.codigo}`;
+}
+
+function serviceSnapshot(service) {
+  return {
+    conta: String(service.conta || ""),
+    codigo: String(service.codigo || ""),
+    descricao: String(service.descricao || ""),
+    unidade: String(service.unidade || ""),
+    valor_unitario: Number(service.valor_unitario || 0),
+    caminho: String(service.caminho || ""),
+    url_origem: String(service.url_origem || ""),
+    texto_busca: String(service.texto_busca || "")
+  };
+}
+
+function hasServiceChanges(currentServices, nextServices) {
+  if (currentServices.length !== nextServices.length) {
+    return true;
+  }
+
+  const currentByKey = new Map(
+    currentServices.map((service) => [serviceKey(service), serviceSnapshot(service)])
+  );
+
+  return nextServices.some((service) => {
+    const current = currentByKey.get(serviceKey(service));
+    const next = serviceSnapshot(service);
+
+    if (!current) {
+      return true;
+    }
+
+    return Object.keys(next).some((key) => current[key] !== next[key]);
+  });
+}
+
 async function getDb() {
   if (!dbPromise) {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -55,7 +93,21 @@ async function initDatabase() {
 
 async function replaceServices(services) {
   const db = await getDb();
-  const updatedAt = new Date().toISOString();
+  const checkedAt = new Date().toISOString();
+  const currentServices = await getServices();
+  const changed = hasServiceChanges(currentServices, services);
+
+  if (!changed) {
+    await setMeta("last_check", checkedAt);
+    return {
+      changed: false,
+      checkedAt,
+      total: services.length,
+      updatedAt: await getMeta("last_sync")
+    };
+  }
+
+  const updatedAt = checkedAt;
 
   await db.exec("BEGIN TRANSACTION");
 
@@ -101,9 +153,10 @@ async function replaceServices(services) {
 
     await statement.finalize();
     await setMeta("last_sync", updatedAt);
+    await setMeta("last_check", checkedAt);
     await db.exec("COMMIT");
 
-    return { updatedAt, total: services.length };
+    return { changed: true, checkedAt, updatedAt, total: services.length };
   } catch (error) {
     await db.exec("ROLLBACK");
     throw error;
@@ -156,10 +209,12 @@ async function getStats() {
   const db = await getDb();
   const row = await db.get("SELECT COUNT(*) AS total, MAX(data_atualizacao) AS lastUpdate FROM services");
   const lastSync = await getMeta("last_sync");
+  const lastCheck = await getMeta("last_check");
 
   return {
     total: row?.total || 0,
-    lastUpdate: row?.lastUpdate || lastSync || null
+    lastUpdate: row?.lastUpdate || lastSync || null,
+    lastCheck: lastCheck || null
   };
 }
 

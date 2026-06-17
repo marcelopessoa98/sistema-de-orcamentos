@@ -17,12 +17,9 @@ const storageKeys = {
 const elements = {
   searchInput: document.querySelector("#searchInput"),
   unitFilter: document.querySelector("#unitFilter"),
-  syncButton: document.querySelector("#syncButton"),
   searchButton: document.querySelector("#searchButton"),
   pdfButton: document.querySelector("#pdfButton"),
   statusMessage: document.querySelector("#statusMessage"),
-  serviceCount: document.querySelector("#serviceCount"),
-  lastUpdate: document.querySelector("#lastUpdate"),
   resultCount: document.querySelector("#resultCount"),
   resultsBody: document.querySelector("#resultsBody"),
   budgetBody: document.querySelector("#budgetBody"),
@@ -80,10 +77,33 @@ function setStatus(message, type = "default") {
   elements.statusMessage.classList.toggle("warning", type === "warning");
 }
 
+async function readApiJson(response, fallbackMessage) {
+  const contentType = response.headers.get("content-type") || "";
+  const text = await response.text();
+
+  if (!contentType.includes("application/json")) {
+    const preview = text.replace(/\s+/g, " ").trim().slice(0, 160);
+    const detail = preview ? ` Trecho recebido: ${preview}` : "";
+    throw new Error(`${fallbackMessage} A API retornou uma resposta que não é JSON.${detail}`);
+  }
+
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`${fallbackMessage} A API retornou um JSON inválido.`);
+  }
+
+  if (!response.ok || data.success === false) {
+    throw new Error(data.message || fallbackMessage);
+  }
+
+  return data;
+}
+
 function setLoading(isLoading) {
   state.isSyncing = isLoading;
   elements.loadingOverlay.hidden = !isLoading;
-  elements.syncButton.disabled = isLoading;
   elements.searchButton.disabled = isLoading || state.services.length === 0;
   elements.searchInput.disabled = isLoading || state.services.length === 0;
   elements.unitFilter.disabled = isLoading || state.services.length === 0;
@@ -101,14 +121,7 @@ function loadBudget() {
   }
 }
 
-function updateBaseInfo(total, lastUpdate) {
-  elements.serviceCount.textContent = `${total} ${total === 1 ? "serviço carregado" : "serviços carregados"}`;
-
-  const savedUpdate = lastUpdate || localStorage.getItem(storageKeys.lastUpdate);
-  elements.lastUpdate.textContent = savedUpdate
-    ? `Última atualização: ${new Date(savedUpdate).toLocaleString("pt-BR")}`
-    : "Base ainda não atualizada";
-
+function updateBaseInfo(_total, lastUpdate) {
   if (lastUpdate) {
     localStorage.setItem(storageKeys.lastUpdate, lastUpdate);
   }
@@ -127,7 +140,7 @@ function applySearch() {
   if (state.services.length === 0) {
     state.results = [];
     renderResults();
-    setStatus("Atualize a base SEINFRA antes de pesquisar.", "warning");
+    setStatus("A base SEINFRA ainda não está disponível.", "warning");
     return;
   }
 
@@ -194,7 +207,7 @@ function renderResults() {
 
   if (state.services.length === 0) {
     elements.resultsBody.innerHTML = `
-      <tr><td colspan="7" class="empty-cell">Atualize a base SEINFRA para começar.</td></tr>
+      <tr><td colspan="7" class="empty-cell">Aguardando a verificação automática da base SEINFRA.</td></tr>
     `;
     return;
   }
@@ -288,11 +301,7 @@ function closeModal() {
 
 async function loadServices() {
   const response = await fetch("/api/services");
-  const data = await response.json();
-
-  if (!response.ok || !data.success) {
-    throw new Error(data.message || "Não foi possível carregar os serviços.");
-  }
+  const data = await readApiJson(response, "Não foi possível carregar os serviços.");
 
   state.services = data.services || [];
   buildFuse();
@@ -300,7 +309,7 @@ async function loadServices() {
   setLoading(false);
 
   if (state.services.length === 0) {
-    setStatus("A base local está vazia. Clique em Atualizar Base SEINFRA.", "warning");
+    setStatus("A base SEINFRA ainda não retornou serviços. O sistema tentará verificar novamente ao abrir.", "warning");
   } else {
     setStatus("Base local carregada. A busca já está pronta para uso.");
   }
@@ -308,25 +317,18 @@ async function loadServices() {
   applySearch();
 }
 
-async function syncBase() {
+async function checkBaseUpdates() {
   setLoading(true);
-  setStatus("Sincronizando a base SEINFRA...");
+  setStatus("Verificando atualizações da base SEINFRA...");
 
-  try {
-    const response = await fetch("/api/sync-seinfra", { method: "POST" });
-    const data = await response.json();
+  const response = await fetch("/api/sync-seinfra", { method: "POST" });
+  const data = await readApiJson(response, "Não foi possível verificar a base SEINFRA.");
 
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || "Falha ao sincronizar a base SEINFRA.");
-    }
-
+  if (data.updatedAt) {
     localStorage.setItem(storageKeys.lastUpdate, data.updatedAt);
-    await loadServices();
-    setStatus(data.message);
-  } catch (error) {
-    setStatus(error.message, "warning");
-    setLoading(false);
   }
+
+  return data;
 }
 
 async function generatePdf() {
@@ -347,8 +349,7 @@ async function generatePdf() {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.message || "Não foi possível gerar o PDF.");
+      await readApiJson(response, "Não foi possível gerar o PDF.");
     }
 
     const blob = await response.blob();
@@ -380,7 +381,6 @@ function bindEvents() {
   });
 
   elements.searchButton.addEventListener("click", applySearch);
-  elements.syncButton.addEventListener("click", syncBase);
   elements.pdfButton.addEventListener("click", generatePdf);
 
   elements.suggestions.addEventListener("click", (event) => {
@@ -481,11 +481,18 @@ async function init() {
   setLoading(true);
 
   try {
+    const syncResult = await checkBaseUpdates();
     await loadServices();
+    setStatus(syncResult.message || "Base SEINFRA verificada.");
   } catch (error) {
-    setStatus(error.message, "warning");
-    updateBaseInfo(0, null);
-    setLoading(false);
+    try {
+      await loadServices();
+      setStatus(`Não foi possível verificar a base SEINFRA agora. Usando a base local. ${error.message}`, "warning");
+    } catch (loadError) {
+      setStatus(loadError.message || error.message, "warning");
+      updateBaseInfo(0, null);
+      setLoading(false);
+    }
   }
 }
 

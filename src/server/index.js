@@ -22,6 +22,12 @@ app.use(async (_req, _res, next) => {
   }
 });
 app.use("/api", routes);
+app.use("/api", (_req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Rota da API não encontrada."
+  });
+});
 
 app.get("*", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));

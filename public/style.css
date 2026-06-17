@@ -67,14 +67,6 @@ button {
   text-transform: uppercase;
 }
 
-.header-status {
-  display: grid;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  text-align: right;
-}
-
 .app-shell {
   width: min(1480px, 100%);
   margin: 0 auto;
@@ -534,10 +526,6 @@ td {
   .app-header {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .header-status {
-    text-align: left;
   }
 
   .search-grid {

@@ -166,12 +166,16 @@ router.post("/sync-seinfra", async (_req, res, next) => {
     const saved = await replaceServices(scrapeResult.services);
     res.json({
       success: true,
+      changed: saved.changed,
       total: saved.total,
+      checkedAt: saved.checkedAt,
       updatedAt: saved.updatedAt,
       visitedPages: scrapeResult.visitedPages,
       errors: scrapeResult.errors,
       foundKnownServices: scrapeResult.foundKnownServices,
-      message: `Base SEINFRA atualizada com ${saved.total} serviços.`
+      message: saved.changed
+        ? `Base SEINFRA atualizada com ${saved.total} serviços.`
+        : "Base SEINFRA conferida. Nenhuma alteração encontrada."
     });
   } catch (error) {
     next(error);
@@ -188,6 +192,7 @@ router.get("/services", async (_req, res, next) => {
       success: true,
       total: services.length,
       lastUpdate: stats.lastUpdate,
+      lastCheck: stats.lastCheck,
       services
     });
   } catch (error) {

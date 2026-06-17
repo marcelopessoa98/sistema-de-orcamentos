@@ -12,10 +12,6 @@
         <p class="eyebrow">Tabela de Custos SEINFRA</p>
         <h1>Sistema de Orçamento SEINFRA</h1>
       </div>
-      <div class="header-status">
-        <span id="serviceCount">0 serviços carregados</span>
-        <span id="lastUpdate">Base ainda não atualizada</span>
-      </div>
     </header>
 
     <main class="app-shell">
@@ -50,10 +46,6 @@
           </label>
 
           <div class="actions">
-            <button id="syncButton" class="button secondary" type="button">
-              <i data-lucide="refresh-cw" aria-hidden="true"></i>
-              Atualizar Base SEINFRA
-            </button>
             <button id="searchButton" class="button primary" type="button">
               <i data-lucide="list-filter" aria-hidden="true"></i>
               Pesquisar
@@ -88,7 +80,7 @@
               </thead>
               <tbody id="resultsBody">
                 <tr>
-                  <td colspan="7" class="empty-cell">Atualize a base SEINFRA para começar.</td>
+                  <td colspan="7" class="empty-cell">Verificando a base SEINFRA...</td>
                 </tr>
               </tbody>
             </table>
@@ -173,8 +165,8 @@
 
     <div id="loadingOverlay" class="loading-overlay" hidden>
       <div class="loader"></div>
-      <strong>Sincronizando a base SEINFRA</strong>
-      <span>Isso pode levar alguns minutos, dependendo da quantidade de páginas.</span>
+      <strong>Verificando a base SEINFRA</strong>
+      <span>O sistema confere atualizações automaticamente ao abrir.</span>
     </div>
 
     <script src="/vendor/lucide.min.js"></script>

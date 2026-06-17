@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sistema de Orçamento SEINFRA</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Tabela de Custos SEINFRA</p>
+        <h1>Sistema de Orçamento SEINFRA</h1>
+      </div>
+      <div class="header-status">
+        <span id="serviceCount">0 serviços carregados</span>
+        <span id="lastUpdate">Base ainda não atualizada</span>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="search-panel" aria-label="Busca de serviços">
+        <div class="search-grid">
+          <label class="search-field" for="searchInput">
+            <span>Buscar serviço</span>
+            <div class="input-wrap">
+              <i data-lucide="search" aria-hidden="true"></i>
+              <input
+                id="searchInput"
+                type="search"
+                autocomplete="off"
+                placeholder="Digite: escavação, C5011, cerâmica, concreto, M3..."
+              />
+            </div>
+            <div id="suggestions" class="suggestions" role="listbox" aria-label="Sugestões"></div>
+          </label>
+
+          <label class="unit-filter" for="unitFilter">
+            <span>Unidade</span>
+            <select id="unitFilter">
+              <option value="">Todas</option>
+              <option value="m²">m²</option>
+              <option value="m³">m³</option>
+              <option value="m">m</option>
+              <option value="un">un</option>
+              <option value="kg">kg</option>
+              <option value="h">h</option>
+              <option value="t">t</option>
+            </select>
+          </label>
+
+          <div class="actions">
+            <button id="syncButton" class="button secondary" type="button">
+              <i data-lucide="refresh-cw" aria-hidden="true"></i>
+              Atualizar Base SEINFRA
+            </button>
+            <button id="searchButton" class="button primary" type="button">
+              <i data-lucide="list-filter" aria-hidden="true"></i>
+              Pesquisar
+            </button>
+          </div>
+        </div>
+        <p id="statusMessage" class="status-message">Carregando status da base local...</p>
+      </section>
+
+      <section class="workspace">
+        <section class="results-panel" aria-label="Resultados da busca">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Catálogo</p>
+              <h2>Resultados</h2>
+            </div>
+            <span id="resultCount">0 itens</span>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Conta</th>
+                  <th>Código</th>
+                  <th>Serviço</th>
+                  <th>Caminho</th>
+                  <th>Unidade</th>
+                  <th>Valor Unitário</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody">
+                <tr>
+                  <td colspan="7" class="empty-cell">Atualize a base SEINFRA para começar.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="budget-panel" aria-label="Orçamento">
+          <div class="section-title">
+            <div>
+              <p class="eyebrow">Composição</p>
+              <h2>Orçamento</h2>
+            </div>
+            <button id="pdfButton" class="button accent" type="button" disabled>
+              <i data-lucide="file-down" aria-hidden="true"></i>
+              Gerar PDF
+            </button>
+          </div>
+
+          <div class="table-wrap compact">
+            <table>
+              <thead>
+                <tr>
+                  <th>Atividade</th>
+                  <th>Código</th>
+                  <th>Serviço</th>
+                  <th>Un</th>
+                  <th>Qtd.</th>
+                  <th>Valor unit.</th>
+                  <th>Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="budgetBody">
+                <tr>
+                  <td colspan="8" class="empty-cell">Nenhum item no orçamento.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="budget-summary">
+            <span>Total Geral</span>
+            <strong id="grandTotal">R$ 0,00</strong>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="itemModal" class="modal" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal></div>
+      <form class="modal-dialog" id="itemForm">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Adicionar serviço</p>
+            <h2 id="modalServiceCode">Serviço</h2>
+          </div>
+          <button class="icon-button" type="button" data-close-modal aria-label="Fechar">
+            <i data-lucide="x" aria-hidden="true"></i>
+          </button>
+        </div>
+        <p id="modalServiceDescription" class="modal-description"></p>
+
+        <label>
+          <span>Atividade/etapa</span>
+          <input id="activityInput" type="text" required placeholder="Ex.: Movimento de terra" />
+        </label>
+
+        <label>
+          <span>Quantidade</span>
+          <input id="quantityInput" type="number" min="0.0001" step="0.0001" required placeholder="10" />
+        </label>
+
+        <div class="modal-actions">
+          <button class="button ghost" type="button" data-close-modal>Cancelar</button>
+          <button class="button primary" type="submit">
+            <i data-lucide="plus" aria-hidden="true"></i>
+            Adicionar
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div id="loadingOverlay" class="loading-overlay" hidden>
+      <div class="loader"></div>
+      <strong>Sincronizando a base SEINFRA</strong>
+      <span>Isso pode levar alguns minutos, dependendo da quantidade de páginas.</span>
+    </div>
+
+    <script src="/vendor/fuse.min.js"></script>
+    <script src="/vendor/lucide.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

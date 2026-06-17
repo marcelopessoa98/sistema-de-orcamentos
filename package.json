@@ -1,0 +1,31 @@
+{
+  "name": "orcamento-seinfra",
+  "version": "1.0.0",
+  "description": "Sistema web local para montar orcamentos com base na tabela de custos da SEINFRA.",
+  "main": "src/server/index.js",
+  "scripts": {
+    "dev": "node --watch src/server/index.js",
+    "start": "node src/server/index.js",
+    "sync": "node src/server/scraper.js --sync",
+    "test:scraper": "node src/server/scraper.js --test"
+  },
+  "keywords": [
+    "seinfra",
+    "orcamento",
+    "sqlite",
+    "express"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "express": "^4.19.2",
+    "fuse.js": "^7.0.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "lucide": "^0.468.0",
+    "playwright": "^1.44.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1"
+  }
+}
